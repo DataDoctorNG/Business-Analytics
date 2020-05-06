@@ -1,0 +1,163 @@
+---
+title: "Final Project BA"
+output: html_notebook
+---
+
+```{r}
+#install.packages('C50')
+```
+
+```{r}
+library(dplyr)
+library(C50)
+library(miceadds)
+library(dummies)
+library(caret)
+library(ISLR)
+library(stats)
+library(gmodels)
+library(pROC)
+library(e1071)
+library(Metrics)
+```
+
+```{r}
+data(churn)
+load.Rdata("Customers_To_Predict.Rdata", "Prediction_Data")
+region <- read.csv("region_states.csv")
+export <- Prediction_Data
+```
+
+```{r}
+export <- Prediction_Data
+export <- left_join(x=export,y=region,by="state")
+```
+
+```{r}
+#Exploratory Analysis
+
+region_desc <- merge(x=churnTrain, y=region,by="state",all.x=TRUE) %>% 
+    group_by( Region ) %>% na.omit()%>%
+    summarise( Avg_account_len=mean( account_length ), Avg_vmail_messages=mean( number_vmail_messages ), Avg_total_minutes=mean( total_day_minutes ), Avg_total_calls=mean( total_day_calls ), Avg_account_len=mean( account_length ), Avg_total_charge=mean( total_day_charge ), std_account_len=sd( account_length ), std_vmail_messages=sd( number_vmail_messages ), std_total_minutes=sd( total_day_minutes ), std_total_calls=sd( total_day_calls ), std_account_len=sd( account_length ), std_total_charge=sd( total_day_charge ))
+
+area_code_desc <- churnTrain %>% 
+    na.omit() %>% 
+    group_by( area_code ) %>% na.omit()%>%
+    summarise( Avg_account_len=mean( account_length ), Avg_vmail_messages=mean( number_vmail_messages ), Avg_total_minutes=mean( total_day_minutes ), Avg_total_calls=mean( total_day_calls ), Avg_account_len=mean( account_length ), Avg_total_charge=mean( total_day_charge ), std_account_len=sd( account_length ), std_vmail_messages=sd( number_vmail_messages ), std_total_minutes=sd( total_day_minutes ), std_total_calls=sd( total_day_calls ), std_account_len=sd( account_length ), std_total_charge=sd( total_day_charge ))
+
+write.csv(region_desc,'C:\\Users\\nicho\\Google Drive\\School\\Graduate School\\Kent State\\Fall 2019\\Business Analytics\\Final Project\\region.csv', row.names = FALSE)
+write.csv(area_code_desc,'C:\\Users\\nicho\\Google Drive\\School\\Graduate School\\Kent State\\Fall 2019\\Business Analytics\\Final Project\\area_code.csv', row.names = FALSE)
+
+```
+
+```{r}
+#Data Preprocessing Training Data
+#Since the state variables would've created 68 variables in total, I used a region variable to make sure that 
+#dimensionality is reduced.
+norm <- preProcess(churnTrain[, c(2, 6, 7, 10, 11, 13, 14, 16, 17, 19)], method=c("center", "scale"))
+
+churnTrain[, c(2, 6, 7, 10, 11, 13, 14, 16, 17, 19)] <- predict(norm, churnTrain[, c(2, 6, 7, 10, 11, 13, 14, 16, 17, 19)])
+#Need to take out these columns due to Redundency and high multicollinearity with the minutes variable 
+churnTrain <- merge(x=churnTrain,y=region,by="state",all.x=TRUE)
+churnTrain <- churnTrain[,-c(1, 3, 9, 12, 15, 18)]
+churnTrain <- dummy.data.frame(churnTrain, names=c("Region", "international_plan", "voice_mail_plan"),sep = ".")
+churnTrain$churn <- factor(churnTrain$churn,levels(churnTrain$churn)[c(2,1)])
+```
+
+```{r}
+#Data Preprocessing Testing Data
+#Since the state variables would've created 68 variables in total, I used a region variable to make sure that dimensionality is reduced.
+norm <- preProcess(churnTest[, c(2, 6, 7, 10, 11, 13, 14, 16, 17, 19)], method=c("center", "scale"))
+
+churnTest[, c(2, 6, 7, 10, 11, 13, 14, 16, 17, 19)] <- predict(norm, churnTest[, c(2, 6, 7, 10, 11, 13, 14, 16, 17, 19)])
+#Need to take out these columns due to Redundency and high multicollinearity with the minutes variable
+churnTest <- merge(x=churnTest,y=region,by="state",all.x=TRUE)
+churnTest <- churnTest[,-c(1, 3, 9, 12, 15, 18)]
+churnTest <- dummy.data.frame(churnTest, names=c("Region", "international_plan", "voice_mail_plan"),sep = ".")
+churnTest$churn <- factor(churnTest$churn,levels(churnTest$churn)[c(2,1)])
+```
+
+```{r}
+#Data Preprocessing Prediction Data
+norm <- preProcess(Prediction_Data[, c(2, 6, 7, 10, 11, 13, 14, 16, 17, 19)], method=c("center", "scale"))
+
+Prediction_Data[, c(2, 6, 7, 10, 11, 13, 14, 16, 17, 19)] <- predict(norm, Prediction_Data[, c(2, 6, 7, 10, 11, 13, 14, 16, 17, 19)])
+Prediction_Data <- merge(x=Prediction_Data,y=region,by="state",all.x=TRUE)
+Prediction_Data <- Prediction_Data[,-c(1, 3, 9, 12, 15, 18)]
+Prediction_Data <- dummy.data.frame(Prediction_Data, names=c("Region", "international_plan", "voice_mail_plan"),sep = ".")
+State_pred <- data.frame(state=Prediction_Data[,c(1)])
+```
+
+```{r}
+#Setting Up the Model
+#Cross Validation
+train.control <- trainControl(method = "cv", number = 5)
+#Creating the Model
+Model_ABC_Wireless_log <- train(churn ~.,data=churnTrain, method="glm", 
+                                family="binomial", trControl = train.control)
+summary(Model_ABC_Wireless_log)
+
+```
+
+```{r}
+results_prob <- predict(Model_ABC_Wireless_log,newdata=Prediction_Data,type = "prob")
+results_prob <- data.frame(churn_prob=results_prob$yes)
+results <- ifelse(results_prob > 0.5,1,0)
+results <- data.frame(prediction=results)
+churnTrain <- transform(churnTrain, churn = ifelse(churnTrain$churn == "yes", 1, 0))
+results_prob_train <- predict(Model_ABC_Wireless_log,newdata=churnTrain,type = "prob")
+results_prob_train <- data.frame(churn_prob=results_prob_train$yes)
+results_train <- ifelse(results_prob_train$churn_prob > 0.5,1,0)
+results_prob_test <- predict(Model_ABC_Wireless_log,newdata=churnTest,type = "prob")
+results_prob_test <- data.frame(churn_prob=results_prob_test$yes)
+results_test <- ifelse(results_prob_test$churn_prob > 0.5,1,0)
+results_data <- data.frame(churn_prob=results_prob, Prediction=results)
+```
+
+```{r}
+Prediction_Data <- cbind(export, results_data)
+write.csv(Prediction_Data,'C:\\Users\\nicho\\Google Drive\\School\\Graduate School\\Kent State\\Fall 2019\\Business Analytics\\Final Project\\Predictions.csv', row.names = FALSE)
+```
+
+```{r}
+#Training
+#Accuracy
+accuracy(results_train, churnTrain$churn)
+
+#Confusion Matrix for the Training Set
+CrossTable(x=churnTrain$churn, y=results_train, prop.chisq = FALSE)
+
+#AUC
+
+roc(churnTrain$churn, results_prob_train$churn_prob)
+
+plot.roc(churnTrain$churn, results_prob_train$churn_prob)
+
+#Testing
+accuracy(results_test, churnTest$churn)
+
+#Confusion Matrix for the Test Set
+CrossTable(x=churnTest$churn, y=results_test, prop.chisq = FALSE)
+
+#AUC
+
+roc(churnTest$churn, results_prob_test$churn_prob)
+
+plot.roc(churnTest$churn, results_prob_test$churn_prob)
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```

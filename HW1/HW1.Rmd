@@ -1,0 +1,213 @@
+---
+title: "Business Analytics HW 1"
+author: "Nick Golina"
+date: "10/9/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r Business Analytics}
+
+library(dplyr)
+
+```
+
+
+```{r Business Analytics}
+#1a
+
+1-pnorm(700,mean=494,sd=100)
+
+#1b
+
+pnorm(450,mean=494,sd=100) - pnorm(350,mean=494,sd=100)
+
+```
+```{r Business Analytics}
+#2
+
+-((qnorm(.8665)*36)-(449))
+
+```
+
+```{r Business Analytics}
+#3
+
+Kent=c(59, 68, 78, 60) 
+Kent_mean = mean(Kent)
+Kent_adj = Kent - Kent_mean
+Kent_sd = sd(Kent)
+Los_Angeles=c(90, 82, 78, 75) 
+Los_Angeles_mean = mean(Los_Angeles)
+Los_Angeles_adj = Los_Angeles - Los_Angeles_mean
+Los_Angeles_sd = sd(Los_Angeles)
+
+#Correlation
+(sum(Kent_adj*Los_Angeles_adj)/(Kent_sd*Los_Angeles_sd))/(4-1)
+
+```
+
+```{r Business Analytics}
+#4
+
+Retail <- read.csv("Online_Retail.csv")
+
+summary(group_by(Retail, Country))
+
+Country <- Retail %>% 
+    group_by( Country ) %>% 
+    summarise( percent = 100 * n() / nrow( Retail ), Total = n() )
+
+Country <- filter(Country, percent>1)
+
+Country
+
+```
+
+```{r Business Analytics}
+#5
+
+Retail$TransactionValue <- Retail$UnitPrice*Retail$Quantity
+
+```
+
+```{r Business Analytics}
+#6
+
+Country_sum <- Retail %>% 
+    group_by( Country ) %>% 
+    summarise( sum = sum(TransactionValue))
+
+Country <- filter(Country_sum, sum>130000)
+
+Country_sum
+
+```
+
+```{r Business Analytics}
+#7
+
+#Initial Data Manipulations
+
+Temp<-strptime(Retail$InvoiceDate,format='%m/%d/%Y %H:%M',tz='GMT')
+Retail$New_Invoice_Date <- as.Date(Temp)
+Retail$Invoice_Day_Week <- (weekdays(Retail$New_Invoice_Date))
+Retail$New_Invoice_Hour <- as.numeric(format(Temp, "%H"))
+Retail$New_Invoice_Month <- as.numeric(format(Temp, "%m"))
+
+#7a)
+
+Retail$Invoice_Day_Week = (weekdays(Retail$New_Invoice_Date))
+Retail %>% group_by(Invoice_Day_Week) %>% summarise(perc_transaction_number=(n()*100)/nrow(Retail))
+
+#7b)
+
+Retail %>% group_by(Invoice_Day_Week) %>% summarise(perc_trans_volume=(sum(TransactionValue)*100)/sum(Retail$TransactionValue))
+
+#7c)
+
+Retail$New_Invoice_Month <- as.numeric(format(Temp, "%m"))
+
+Retail %>% group_by(New_Invoice_Month) %>% summarise(perc_trans_volume=(sum(TransactionValue)*100)/sum(Retail$TransactionValue))
+
+#7d)
+
+Retail$New_Invoice_Date <- as.Date(Temp)
+Retail%>% filter(Country=='Australia') %>% group_by(New_Invoice_Date)%>%summarise(n=n())%>%arrange(desc(n))  
+
+#7e)
+
+Retail$New_Invoice_Hour <- as.numeric(format(Temp, "%H"))
+Retail%>%group_by(New_Invoice_Hour) %>% summarise(n())  
+
+```
+
+```{r Business Analytics}
+#8
+
+Germany <- filter(Retail, Country=="Germany")
+
+hist(Germany$TransactionValue)
+
+```
+
+```{r Business Analytics}
+#9
+
+Customer_sum <- Retail %>% 
+    group_by( CustomerID ) %>% 
+    summarise( sum = sum(TransactionValue), Total = n())
+
+Customer_sum <- na.omit(Customer_sum) #Note that for both parts NA was the most valuable and with more transactions
+
+#Customer with greatest value
+
+filter(Customer_sum, sum==max(Customer_sum$sum))
+
+#Customer with Highest Number of Transactions
+
+filter(Customer_sum, Total==max(Customer_sum$Total))
+
+```
+
+```{r Business Analytics}
+#10
+
+colMeans(is.na(Retail))
+
+```
+
+```{r Business Analytics}
+#11
+
+Customer_sum <- Retail %>% 
+    group_by( CustomerID, Country ) %>%
+    summarise( sum = sum(TransactionValue), Total = n())
+
+Customer_sum %>% filter(is.na(CustomerID))
+
+```
+
+```{r Business Analytics}
+#12
+
+
+
+```
+
+```{r Business Analytics}
+#13
+
+French <- filter(Retail, Country=="France")
+
+French_return <- French %>% 
+    group_by( Country ) %>%
+    summarise( Neg_Total = nrow(subset(French, TransactionValue<0)), Pos_Total = nrow(subset(French, TransactionValue>0)), Return_Ratio=Neg_Total/n())
+
+French_return
+
+```
+
+```{r Business Analytics}
+#14
+
+Product <- Retail %>% 
+    group_by( Description ) %>%
+    summarise( TransactionValue = sum(TransactionValue) )
+
+Product <- filter(Product, TransactionValue==max(TransactionValue))
+
+Product
+
+```
+
+```{r Business Analytics}
+#15
+
+length(unique(Retail$CustomerID))
+
+```

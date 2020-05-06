@@ -1,0 +1,127 @@
+---
+title: "Logistic Regression"
+author: "Harika"
+date: "11/24/2019"
+output:
+  word_document: default
+  html_document: default
+---
+#Libraries used
+```{r }
+library(dplyr)
+library(caret)
+library(ggplot2)
+library(C50)
+library(mlbench)
+library(Amelia)
+library(corrplot)
+library(psych)
+library(pROC)
+```
+
+#data from C50
+
+```{r}
+data(churn)
+mydata <- churnTrain
+colnames(mydata)
+str(mydata)
+```
+
+
+#Data preparation
+```{r}
+# changing order of factor levels
+
+mydata$churn= factor(mydata$churn,levels(mydata$churn)[c(2,1)])
+str(mydata$churn)
+
+#missing value
+sum(is.na(mydata))
+#Note:no missing value in this data
+
+#data analysis
+#churn(target variable) analysis
+plot(mydata$churn,main="churn analysis",col=c("green","red"))
+
+#for numerical values
+corelation <- cor(mydata[,c(-1,-3,-4,-5,-20)])
+corrplot(corelation,method = "square",title = "Correlation between continuous/numerical variables")
+
+# Note:total_day_minutes is highly correlated to total_day_charge,total_eve_charge highly correlated to total_day_minutes,total_night_charge highly correalted to total_night_minute,total_int_charge correlated to total_int_minutes.
+
+plot(mydata$total_day_minutes,mydata$total_day_charge)
+plot(mydata$total_eve_minutes,mydata$total_eve_charge)
+plot(mydata$total_night_minutes,mydata$total_night_charge)
+plot(mydata$total_intl_minutes,mydata$total_intl_charge)
+
+#for categorical variables
+
+ggplot(mydata, aes(area_code, ..count..)) + geom_bar(aes(fill = churn), position = "dodge")
+ggplot(mydata, aes(state, ..count..)) + geom_bar(aes(fill = churn), position = "dodge")
+ggplot(mydata, aes(international_plan, ..count..)) + geom_bar(aes(fill = churn), position = "dodge")
+ggplot(mydata, aes(voice_mail_plan, ..count..)) + geom_bar(aes(fill = churn), position = "dodge")
+
+```
+
+#without using state variable
+#Splitting data into train and test set
+
+```{r}
+mydata_use <- mydata[,c(-1,-7,-10,-13,-16)]
+set.seed(143)
+part <- createDataPartition(mydata_use$churn,p=0.7,list=FALSE)
+train <- mydata_use[part,]
+test <- mydata_use[-part,]
+```
+
+#using logistic modeling
+```{r}
+model <- glm(churn~.,data = train,family = 'binomial')
+model
+summary(model)
+```
+
+#prediction using test set
+```{r}
+prob <- predict(model,newdata = test[,c(-15)],type = "response")
+head(train$churn)
+head(prob)
+prob_levels <- as.factor(prob>0.5)
+levels(prob_levels)=list(no = 'FALSE',yes = 'TRUE')
+head(prob_levels)
+
+#Confusion MAtrix
+T12 <-table(predicted = prob_levels,true_values = test$churn)
+T12
+confusionMatrix(prob_levels,test$churn)
+
+#ROC
+visual <- roc(test$churn,prob)
+plot(visual)
+```
+
+#Customers_to_predict dataset for prediction
+
+```{r}
+test_set <- read.csv("predict.csv")
+
+prob_test <- predict(model,newdata = test_set,type = "response")
+head(prob_test)
+prob_testlevels <- as.factor(prob_test>0.5)
+levels(prob_testlevels)=list(no = 'FALSE',yes = 'TRUE')
+head(prob_testlevels)
+test_predict <- cbind(test_set,churn_predict=prob_testlevels)
+
+plot(test_predict$churn,main="churn analysis",col=c("green","red"))
+```
+
+
+
+
+
+
+
+
+
+
